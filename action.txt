@@ -1,3 +1,5 @@
+main
+
 private String xzToken;
 
 	public String getXzToken() {
