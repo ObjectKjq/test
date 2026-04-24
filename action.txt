@@ -1,0 +1,80 @@
+private String xzToken;
+
+	public String getXzToken() {
+		return xzToken;
+	}
+
+	public void setXzToken(String xzToken) {
+		this.xzToken = xzToken;
+	}
+
+	public String xzLogin() {
+		try {
+			if (StringUtils.isBlank(xzToken)) {
+                errorMessage = "系统基本信息为空，请联系管理员检查！";
+				log.error("刑专单点登录参数必填项验证失败！");
+				return INPUT;
+			}
+			Map<String, Object> userMap = getIdCardNoByXz(xzToken);
+			String idCard = String.valueOf(userMap.get("SFZH"));
+			String organizationRegionalism = String.valueOf(userMap.get("GAJGJGDM"));
+			String initServerNoName = String.valueOf(userMap.get("GAJGJGMC"));
+			if (StringUtils.isBlank(organizationRegionalism)) {
+                errorMessage = "刑专返回用户信息异常:无用户单位！";
+				log.error("刑专返回用户信息异常:无用户单位！");
+				return INPUT;
+			}
+			if (StringUtils.isBlank(initServerNoName)) {
+                errorMessage = "刑专返回用户信息异常:无单位名称！";
+				log.error("刑专返回用户信息异常:无单位名称！");
+				return INPUT;
+			}
+			if (StringUtils.isBlank(idCard) || "null".equals(idCard)) {
+                errorMessage = "刑专返回用户信息异常:无用户身份证号！";
+				log.error("刑专返回用户信息异常:无用户身份证号！");
+				return INPUT;
+			}
+            return this.checkLoginIDCardNo(idCard);
+		} catch (Exception e) {
+            errorMessage = "查询用户信息时出现异常！";
+			log.error("【刑专单点登录】用户登录出现服务器异常， 异常信息：" + e);
+			return INPUT;
+		}
+	}
+
+	private Map<String, Object> getIdCardNoByXz(String xzToken) throws Exception {
+        SysConfigView sysConfig = sysConfigService.getSysConfig(SysConfigConstant.XZ_INTERFACE_CONFIG, SysConfigConstant.GET_USER_BY_TOKEN);
+        String xzInterfaceUrl = sysConfig.getConfigValue();
+        sysConfig = sysConfigService.getSysConfig(SysConfigConstant.XZ_INTERFACE_CONFIG, SysConfigConstant.APP_ID);
+        String appId = sysConfig.getConfigValue();
+        sysConfig = sysConfigService.getSysConfig(SysConfigConstant.XZ_INTERFACE_CONFIG, SysConfigConstant.APP_SECRET);
+        String appSecret = sysConfig.getConfigValue();
+        sysConfig = sysConfigService.getSysConfig(SysConfigConstant.XZ_INTERFACE_CONFIG, SysConfigConstant.APP_KEY);
+        String appKey = sysConfig.getConfigValue();
+
+        long timestamp = System.currentTimeMillis();
+        Map<String, Object> params = new HashMap<>();
+        params.put("app_id", appId);
+        params.put("app_key", appKey);
+        params.put("timestamp", timestamp);
+        params.put("xz_token", xzToken);
+        String str = StringTools.getMapToString(params);
+        params.put("sign", SHA256Util.sha256_HMAC(str, appSecret));
+        //调用接口
+        String resultStr = HttpUtils.doPostFormData(xzInterfaceUrl, params);
+        log.info("接收刑专的用户信息：" + resultStr);
+        Map<String, Object> resultMap = JSONObject.parseObject(resultStr);
+        if (1000 != Integer.parseInt(String.valueOf(resultMap.get("code")))) {
+            log.error("根据token获取xz接口信息时出现异常， 异常信息：{}", resultMap.get("msg"));
+            throw new Exception("根据token获取xz接口信息时出现异常， 异常信息：" + resultMap.get("msg"));
+        }
+        Map<String, Object> dataMap = (Map<String, Object>)resultMap.get("data");
+
+        return dataMap;
+	}
+
+<!-- 刑专单点登录 -->
+		<action name="xzLogin" class="com.highershine.gdna2.action.LoginAction" method="xzLogin">
+            <result name="input" type="dispatcher">/pages/login.jsp</result>
+            <result name="success" type="redirect">/pages/intoIndexPage.action</result>
+		</action>
